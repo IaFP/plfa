@@ -249,7 +249,7 @@ So, this is a bit more involved than the **Hint** would have you believe.
 We want to restrict our term syntax down to a more manageable subset:
 variables, functions, applications, and let statements.
 
-We are going to do so using proof by reflection. To refresh your memory,
+We are going to do so using proof by reflection. To review,
 let's give an easier example.
 
 Suppose we have this function `f` that accepts a Nat, but, really, we want it
@@ -258,6 +258,7 @@ type error.)
 
 
 (i) We first define a predicate that only zero can satisfy.
+
 ```agda
 data IsZero : ℕ → Set where
   iszero : IsZero 0
@@ -405,6 +406,24 @@ _† : ∀ {Γ τ} →
 We need a number of technical results. The first is that simulation
 commutes with values.  That is, if `M ~ M†` and `M` is a value then
 `M†` is also a value:
+
+@AH:
+
+I like to think of it like this:  if you have the arrows on the top-to-right and
+top-to-bottom, you may conclude Value M†. 
+
+(For the categoricists: let us suppose arrows in the diagram below denote the
+Value and ~ propositions hold.)
+
+           ✓
+    M  ----------- Value M
+    |             |
+    |             |
+  ✓ ~            |
+    |             |
+    |      ?      |
+    M† ---------- Value M†
+
 ```agda
 ~val : ∀ {Γ A} {M M† : Γ ⊢ A}
   → M ~ M†
@@ -424,6 +443,20 @@ of interest is a lambda abstraction.
 Show that this also holds in the reverse direction: if `M ~ M†`
 and `Value M†` then `Value M`.
 
+@AH:
+
+Now we have:
+
+           ?
+    M  ----------- Value M
+    |             |
+    |             |
+  ✓ ~            |
+    |             |
+    |      ✓     |
+    M† ---------- Value M†
+
+
 ```agda
 ~val⁻¹ : ∀ {Γ A} {M M† : Γ ⊢ A}
   → M ~ M†
@@ -440,11 +473,25 @@ The next technical result is that simulation commutes with renaming.
 That is, if `ρ` maps any judgment `Γ ∋ A` to a judgment `Δ ∋ A`,
 and if `M ~ M†` then `rename ρ M ~ rename ρ M†`:
 
+@AH: 
+
+        rename ρ
+    M  ----------- rename ρ M
+    |             |
+    |             |
+    ~            ~
+    |             |
+    |   rename ρ  |
+    M† ---------- rename ρ M†
+
+
 ```agda
 ~rename : ∀ {Γ Δ}
   → (ρ : ∀ {A} → Γ ∋ A → Δ ∋ A)
     ----------------------------------------------------------
   → (∀ {A} {M M† : Γ ⊢ A} → M ~ M† → rename ρ M ~ rename ρ M†)
+-- @AH. As we saw in DeBruijn, `ext` is necessary because λ 
+-- and let bindings have subdata with extended environments.
 ~rename ρ (~`)          =  ~`
 ~rename ρ (~ƛ ~N)       =  ~ƛ (~rename (ext ρ) ~N)
 ~rename ρ (~L ~· ~M)    =  (~rename ρ ~L) ~· (~rename ρ ~M)
@@ -465,7 +512,18 @@ The proof first requires we establish an analogue of extension.
 If `σ` and `σ†` both map any judgment `Γ ∋ A` to a judgment `Δ ⊢ A`,
 such that for every `x` in `Γ ∋ A` we have `σ x ~ σ† x`,
 then for any `x` in `Γ , B ∋ A` we have `exts σ x ~ exts σ† x`:
+
+@AH:
+recall that exts is defined as:
+  exts : ∀ {Γ Δ} → (∀ {A} → Γ ∋ A → Δ ⊢ A) → (∀ {A B} → Γ , A ∋ B → Δ , A ⊢ B)
+  exts σ Z      =  ` Z
+  exts σ (S x)  =  rename S_ (σ x)
+
+in other words, exts is repeated renaming. So it follows that
+exts also agrees with _~_, as renaming agrees with _~_.
+
 ```agda
+
 ~exts : ∀ {Γ Δ}
   → {σ  : ∀ {A} → Γ ∋ A → Δ ⊢ A}
   → {σ† : ∀ {A} → Γ ∋ A → Δ ⊢ A}
@@ -483,6 +541,9 @@ With extension under our belts, it is straightforward to show
 substitution commutes.  If `σ` and `σ†` both map any judgment `Γ ∋ A`
 to a judgment `Δ ⊢ A`, such that for every `x` in `Γ ∋ A` we have `σ
 x ~ σ† x`, and if `M ~ M†`, then `subst σ M ~ subst σ† M†`:
+
+@AH:
+
 ```agda
 ~subst : ∀ {Γ Δ}
   → {σ  : ∀ {A} → Γ ∋ A → Δ ⊢ A}
@@ -546,6 +607,8 @@ of the diagram, that is, its right and bottom edges:
      saves us the bother of writing
        ∀ {N†} → N ~ N† × M† —→ N†
      Note that we are quantifying over *all* N†.
+     You may think of this as saying "given top-left part of the diagram,
+     I can always give you a bottom right."
 
 ```agda
 data Leg {Γ A} (M† N : Γ ⊢ A) : Set where
@@ -757,13 +820,25 @@ sim⁻¹ (~ƛ r) ()
 sim⁻¹ (~L ~· ~M) (ξ-·₁ L—→) with sim⁻¹ ~L L—→ 
 ... | arm N~L' L→N = arm (N~L' ~· ~M) (ξ-·₁ L→N)
 sim⁻¹ (~L ~· ~M) (ξ-·₂ VL† M†—→M') with sim⁻¹ ~M M†—→M'
-... | arm N~M' M—→N = arm (~L ~· N~M') (ξ-·₂ {!~val!} {!!})
-sim⁻¹ ((~ƛ r) ~· r₁) (β-ƛ x) = {!!}
-sim⁻¹ (~let r r₁) (ξ-·₂ x s) = {!!}
-sim⁻¹ (~let r r₁) (β-ƛ x) = {!!}
+... | arm N~M' M—→N = arm (~L ~· N~M') (ξ-·₂ (~val⁻¹ ~L VL†) M—→N)
+sim⁻¹ ((~ƛ ~N) ~· ~M) (β-ƛ VM†) = arm (~sub ~N ~M) (β-ƛ (~val⁻¹ ~M VM†))
+-- Case:
+--   → Value V
+--   → M —→ M′
+--     ---------------
+--   → V · M —→ V · M′
+sim⁻¹ (~let ~M ~N) (ξ-·₂ VƛN† M†—→M') with sim⁻¹ ~M M†—→M' 
+... | arm ~N₁ N₁—→M' = arm (~let ~N₁ ~N) (ξ-let N₁—→M')
+sim⁻¹ (~let ~M ~N) (β-ƛ VM†) = arm (~sub ~N ~M) (β-let (~val⁻¹ ~M VM†))
 ```
 
 #### Exercise `products` (practice)
+
+@AH:
+
+This requires *another* projection. I will wait on this until I see if Christa
+knows a clever-er way to make the projection evidence implicit.
+
 
 Show that the two formulations of products in
 Chapter [More](/More/)
