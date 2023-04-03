@@ -389,10 +389,14 @@ _† : ∀ {Γ τ} →
 †⇐~ .(` _) .(` _) ev ~` = refl
 †⇐~ .(ƛ _) .(ƛ _) ev (~ƛ s) with toWitness ev
 ... | λI w rewrite †⇐~ _ _ (fromWitness w) s = refl
-†⇐~ .(_ · _) .(_ · _) ev (s ~· s₁) = {!!}
-†⇐~ .(`let _ _) .((ƛ _) · _) ev (~let s s₁) = {!!}
-
-
+†⇐~ .(_ · _) .(_ · _) ev (s ~· s') with toWitness ev
+... | λE w-M w-M' rewrite 
+  †⇐~ _ _ (fromWitness w-M) s |
+  †⇐~ _ _ (fromWitness w-M') s' = refl
+†⇐~ .(`let _ _) .((ƛ _) · _) ev (~let s s') with toWitness ev
+... | LetI w-M w-M' rewrite
+ †⇐~ _ _ (fromWitness w-M) s |
+  †⇐~ _ _ (fromWitness w-M') s' = refl
 ```
 
 
@@ -421,7 +425,12 @@ Show that this also holds in the reverse direction: if `M ~ M†`
 and `Value M†` then `Value M`.
 
 ```agda
--- Your code goes here
+~val⁻¹ : ∀ {Γ A} {M M† : Γ ⊢ A}
+  → M ~ M†
+  → Value M†
+    --------
+  → Value M
+~val⁻¹ (~ƛ s) V-ƛ = V-ƛ
 ```
 
 
@@ -532,6 +541,12 @@ Or, in a diagram:
 
 We first formulate a concept corresponding to the lower leg
 of the diagram, that is, its right and bottom edges:
+
+@AH: This is just as much for convenience as it is abstraction;
+     saves us the bother of writing
+       ∀ {N†} → N ~ N† × M† —→ N†
+     Note that we are quantifying over *all* N†.
+
 ```agda
 data Leg {Γ A} (M† N : Γ ⊢ A) : Set where
 
@@ -553,18 +568,47 @@ sim : ∀ {Γ A} {M M† N : Γ ⊢ A}
   → M —→ N
     ---------
   → Leg  M† N
+-- variables and lambdas don't step.
 sim ~`              ()
 sim (~ƛ ~N)         ()
+
+-- Case:
+--     → L —→ L′
+--      ---------------
+--    → L · M —→ L′ · M
 sim (~L ~· ~M)      (ξ-·₁ L—→)
   with sim ~L L—→
 ...  | leg ~L′ L†—→                 =  leg (~L′ ~· ~M)   (ξ-·₁ L†—→)
+
+-- Case:
+--    → Value V
+--    → M —→ M′
+--    ---------------
+--    → V · M —→ V · M′
 sim (~V ~· ~M)      (ξ-·₂ VV M—→)
   with sim ~M M—→
 ...  | leg ~M′ M†—→                 =  leg (~V ~· ~M′)   (ξ-·₂ (~val ~V VV) M†—→)
+
+
+-- Case:
+--    → Value V
+--    --------------------
+--    → (ƛ N) · V —→ N [ V ]
 sim ((~ƛ ~N) ~· ~V) (β-ƛ VV)        =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
+
+-- Case:
+--    → M —→ M′
+--    ---------------------
+--    → `let M N —→ `let M′ N
 sim (~let ~M ~N)    (ξ-let M—→)
   with sim ~M M—→
 ...  | leg ~M′ M†—→                 =  leg (~let ~M′ ~N) (ξ-·₂ V-ƛ M†—→)
+
+-- Case:
+--  → Value V
+--     -------------------
+--  → `let V N —→ N [ V ]
+
 sim (~let ~V ~N)    (β-let VV)      =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
 ```
 The proof is by case analysis, examining each possible instance of `M ~ M†`
@@ -678,8 +722,45 @@ In its structure, it looks a little bit like a proof of progress:
 Show that we also have a simulation in the other direction, and hence that we have
 a bisimulation.
 
+@AH:
+
+Simulation meant that the right path
+    M  --- —→ --- N
+    |             |
+    |             |
+    ~             ~
+    |             |
+    |             |
+    M† --- —→ --- N†
+
+
+If M ~ M†, N ~ N†, and (in the target language) M† —→ N†,
+then M —→ N.
+
 ```agda
--- Your code goes here
+
+data Arm {Γ A} (M N† : Γ ⊢ A) : Set where
+    arm : ∀ {N : Γ ⊢ A}
+        → N ~ N†
+        → M —→ N
+        --------
+        → Arm M N†
+
+
+sim⁻¹ : ∀ {Γ A} {M M† N† : Γ ⊢ A}
+  → M ~ M†
+  → M† —→ N†
+    ---------
+  → Arm M N†
+sim⁻¹ ~` ()
+sim⁻¹ (~ƛ r) ()
+sim⁻¹ (~L ~· ~M) (ξ-·₁ L—→) with sim⁻¹ ~L L—→ 
+... | arm N~L' L→N = arm (N~L' ~· ~M) (ξ-·₁ L→N)
+sim⁻¹ (~L ~· ~M) (ξ-·₂ VL† M†—→M') with sim⁻¹ ~M M†—→M'
+... | arm N~M' M—→N = arm (~L ~· N~M') (ξ-·₂ {!~val!} {!!})
+sim⁻¹ ((~ƛ r) ~· r₁) (β-ƛ x) = {!!}
+sim⁻¹ (~let r r₁) (ξ-·₂ x s) = {!!}
+sim⁻¹ (~let r r₁) (β-ƛ x) = {!!}
 ```
 
 #### Exercise `products` (practice)
