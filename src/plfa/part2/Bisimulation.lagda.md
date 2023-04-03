@@ -61,6 +61,43 @@ a simulation from the target to the source: every reduction in the
 target has a corresponding reduction sequence in the source.  This
 situation is called a _bisimulation_.
 
+--------------------------------------------------------------------------------
+-- @AH.
+-- A bit on motivation.
+
+Let us remember the capital-p Point: We have, at first, meaningless symbols
+(syntax). We give these symbols meaning (semantics). How "meaningful" are these
+semantics? How do we even phrase an argument that says "our semantics is more
+meaningful than the empty semantics?"
+
+ (By the "empty semantics", I refer to the denotation ⟦ M ⟧ = ⊥ for all terms
+M and with codomain = { ⊥ }.)
+
+Previous chapters have answered this question in the form of soundness,
+completeness, &c. 
+
+However, there are other ways in which we may want to say a language, or, in
+particular, a _translation_ is meaningful. Consider a compiler which translates
+from the source language many times. For example, GHC translates along this path:
+
+Haskell → Haskell Core / System F_C → STG → C-- → (C | ASM | LLVM)
+
+(See https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/compiler/hsc-main).
+
+The obvious question to ask here is "does what I meant when I wrote Haskell code
+do what I mean it to do as C vode?" _Simulation_ helps us answer this question.
+_Bisimulation_ helps us answer something stronger. 
+
+For example, bisimulations can be used to show *program equivalence*: that if I
+have program A and program B, that these are contextually (or observationally)
+equivalent in some
+way. [Example](https://www.ccs.neu.edu/home/wand/papers/esop-06.pdf).
+
+(And there are many more applications of bisimulation & simulation, of which I
+am sure Garrett or Cesare can describe.)
+
+--------------------------------------------------------------------------------
+
 Simulation is established by case analysis over all possible
 reductions and all possible terms to which they are related.  For each
 reduction step in the source we must show a corresponding reduction
@@ -126,6 +163,18 @@ We import our source language from
 Chapter [More](/More/):
 ```agda
 open import plfa.part2.More
+open import Data.Nat
+open import Data.Unit
+open import Data.Empty
+open import Data.Product 
+  using (_×_)
+  renaming (proj₁ to left ; proj₂ to right ; _,_ to ⟨_,_⟩)
+
+open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary.Decidable using (True; toWitness; fromWitness)
+
+import Relation.Binary.PropositionalEquality as Eq
+open Eq using (_≡_; refl; sym; trans; cong; cong₂; _≢_)
 ```
 
 
@@ -140,21 +189,25 @@ infix  7 _~·_
 
 data _~_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
 
+  -- Reflexivity.
   ~` : ∀ {Γ A} {x : Γ ∋ A}
      ---------
    → ` x ~ ` x
 
+  -- λ-I Congruence.
   ~ƛ_ : ∀ {Γ A B} {N N† : Γ , A ⊢ B}
     → N ~ N†
       ----------
     → ƛ N ~ ƛ N†
 
+  -- λ-E Congruence.
   _~·_ : ∀ {Γ A B} {L L† : Γ ⊢ A ⇒ B} {M M† : Γ ⊢ A}
     → L ~ L†
     → M ~ M†
       ---------------
     → L · M ~ L† · M†
 
+  -- Translating Let to beta reduction.
   ~let : ∀ {Γ A B} {M M† : Γ ⊢ A} {N N† : Γ , A ⊢ B}
     → M ~ M†
     → N ~ N†
@@ -176,8 +229,156 @@ so `_†` should be defined only on relevant terms. One way to do this is
 to use a decidable predicate to pick out terms in the domain of `_†`, using
 [proof by reflection](/Decidable/#proof-by-reflection).
 
+--------------------------------------------------------------------------------
+@AH.
+So, this is a bit more involved than the **Hint** would have you believe.
+We want to restrict our term syntax down to a more manageable subset:
+variables, functions, applications, and let statements.
+
+We are going to do so using proof by reflection. To refresh your memory,
+let's give an easier example.
+
+Suppose we have this function `f` that accepts a Nat, but, really, we want it
+to only accept Zero (in such a way that passing it anything else would be a
+type error.)
+
+
+(i) We first define a predicate that only zero can satisfy.
 ```agda
--- Your code goes here
+data IsZero : ℕ → Set where
+  iszero : IsZero 0
+```
+
+
+(ii) We next show this predicate is decidable.
+
+```agda
+decIsZero : ∀ (n : ℕ) → Dec (IsZero n)
+decIsZero zero    = yes iszero
+decIsZero (suc _) = no (λ ())
+```
+(iii) We now qualify the function `f` with implicit evidence that n is in
+      fact zero. We do so using the `True` predicate. The `True` predicate
+      takes a witness of type (Dec P) and smashes it ⊤ if P is true and ⊥
+      otherwise.  Thus, an inhabitant of (True (Dec P)) is tt if (Dec P) is
+      true, and uninhabitable otherwise. This means Agda is smart enough to
+      infer from the evidence {_ : True (decIsZero n)} that we do not need
+      to pattern match on the case
+          f (suc n) = ...
+      as it would be impossible for such a case to occur.
+```agda
+f : ∀ (n : ℕ) {_ : True (decIsZero n)} → ℕ
+f zero = suc zero
+```
+
+We will use the same trick to project from the term structure of Part2.More
+down to a smaller calculus. (N.B. This is effectively the inverse of the
+expression problem [Wadler98]. It's also a PITA.)
+--------------------------------------------------------------------------------
+
+```agda
+-- (i) Define the predicate.
+data Tm-- : ∀ {Γ τ} → Γ ⊢ τ → Set where
+  var : ∀ {Γ τ} {x : Γ ∋ τ} → 
+
+        ----------
+        Tm-- (` x)
+
+  λI : ∀ {Γ τ τ'} {M : Γ , τ' ⊢ τ} → 
+         Tm-- M →
+         ----------
+         Tm-- (ƛ M)
+
+  λE : ∀ {Γ τ τ'} {M : Γ ⊢ τ ⇒ τ'} {N : Γ ⊢ τ} → 
+       Tm-- M →
+       Tm-- N → 
+       ------------
+       Tm-- (M · N)
+
+  LetI : ∀ {Γ τ τ'} {M : Γ ⊢ τ}{N : Γ , τ ⊢ τ'} →
+
+         Tm-- M → 
+         Tm-- N →
+         ---------------
+         Tm-- (`let M N)
+  
+-- (ii) Show the predicate is decidable.
+tm-- : ∀ {Γ τ} → (M : Γ ⊢ τ) → Dec (Tm-- M)
+tm-- (` x) = yes var
+tm-- (ƛ M) with tm-- M
+... | yes P = yes (λI P)
+... | no  P = no (λ { (λI ev) → P ev })
+tm-- (M · N) with tm-- M | tm-- N
+... | yes P₁ | yes P₂ = yes (λE P₁ P₂) 
+... | yes _  | no  P₂ = no (λ { (λE _ Tm--N) → P₂ Tm--N }) 
+... | no P₁  | yes _ = no (λ { (λE Tm--M _) → P₁ Tm--M })
+... | no P₁  | no  _ = no (λ { (λE Tm--M _) → P₁ Tm--M }) 
+tm-- (`let M N) with tm-- M | tm-- N
+... | yes P₁ | yes P₂ = yes (LetI P₁ P₂)
+... | yes _  | no  P₂ = no (λ { (LetI _ Tm--N) → P₂ Tm--N }) 
+... | no P₁  | yes _ =  no (λ { (LetI Tm--M _) → P₁ Tm--M }) 
+... | no P₁  | no  _ =  no (λ { (LetI Tm--M _) → P₁ Tm--M }) 
+tm-- `zero = no (λ ())
+tm-- (`suc M) = no (λ ())
+tm-- (case M M₁ M₂) = no (λ ())
+tm-- (μ M) = no (λ ())
+tm-- (con x) = no (λ ())
+tm-- (M `* N)  = no (λ ())
+tm-- `⟨ M , M₁ ⟩ = no (λ ())
+tm-- (`proj₁ M) = no (λ ())
+tm-- (`proj₂ M) = no (λ ())
+tm-- (case× M M₁) = no (λ ())
+
+-- (iii) Use the predicate to ensure the term M : Γ ⊢ τ is formed only by our
+--       restricted syntax.
+
+_† : ∀ {Γ τ} → 
+     (M : Γ ⊢ τ) → True (tm-- M) → Γ ⊢ τ
+((` x) †) _ = ` x
+((ƛ M) †) w with toWitness w
+... | λI P = ƛ (_† M (fromWitness P))
+((M · N) †) w with toWitness w
+... | λE P₁ P₂ = (_† M (fromWitness P₁)) · (_† N (fromWitness P₂))
+(`let M N †) w with toWitness w
+... | LetI P₁ P₂ = (ƛ (_† N (fromWitness P₂))) · (_† M (fromWitness P₁))
+
+
+-- Show that `M † ≡ N` iff `M ~ N`.
+†⇒~ : ∀ {Γ τ} →
+        (M N : Γ ⊢ τ) → 
+        (ev : True (tm-- M)) → 
+        _† M ev ≡ N → M ~ N
+†⇒~ (` x) N ev eq rewrite (sym eq) = ~`
+†⇒~ (ƛ M) N ev eq with toWitness ev 
+... | λI w-M rewrite (sym eq) = 
+  let 
+    t = fromWitness w-M
+  in ~ƛ †⇒~ M ((M †) t) t refl
+†⇒~ (M · M') N ev eq with toWitness ev
+... | λE w-M w-M' rewrite (sym eq) =
+  let
+    t = fromWitness w-M
+    t' = fromWitness w-M'
+  in (†⇒~ M ((M †) t) t refl) ~· †⇒~ M' ((M' †) t') t' refl
+†⇒~ (`let M M') N ev eq with toWitness ev
+... | LetI w-M w-M' rewrite (sym eq) = 
+  let
+    t = fromWitness w-M
+    t' = fromWitness w-M'
+  in ~let (†⇒~ M ((M †) t) t refl) (†⇒~ M' ((M' †) t') t' refl)
+
+-- And the converse.
+†⇐~ : ∀ {Γ τ} →
+        (M N : Γ ⊢ τ) → 
+        (ev : True (tm-- M)) → 
+        M ~ N → _† M ev ≡ N
+†⇐~ .(` _) .(` _) ev ~` = refl
+†⇐~ .(ƛ _) .(ƛ _) ev (~ƛ s) with toWitness ev
+... | λI w rewrite †⇐~ _ _ (fromWitness w) s = refl
+†⇐~ .(_ · _) .(_ · _) ev (s ~· s₁) = {!!}
+†⇐~ .(`let _ _) .((ƛ _) · _) ev (~let s s₁) = {!!}
+
+
 ```
 
 
@@ -486,3 +687,8 @@ This chapter uses the following unicode:
     †  U+2020  DAGGER (\dag)
     ⁻  U+207B  SUPERSCRIPT MINUS (\^-)
     ¹  U+00B9  SUPERSCRIPT ONE (\^1)
+
+--------------------------------------------------------------------------------
+-- Bibliography.
+--
+-- [Wadler 98]
