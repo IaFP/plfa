@@ -80,7 +80,7 @@ However, there are other ways in which we may want to say a language, or, in
 particular, a _translation_ is meaningful. Consider a compiler which translates
 from the source language many times. For example, GHC translates along this path:
 
-Haskell → Haskell Core / System F_C → STG → C-- → (C | ASM | LLVM)
+Haskell → (Haskell Core / System FC) → STG → C-- → (C | ASM | LLVM | ...)
 
 (See https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/compiler/hsc-main).
 
@@ -95,6 +95,20 @@ way. [Example](https://www.ccs.neu.edu/home/wand/papers/esop-06.pdf).
 
 (And there are many more applications of bisimulation & simulation, of which I
 am sure Garrett or Cesare can describe.)
+
+In this chapter, we will use bisimulation to show that the `let` construct could
+just as easily be expressed using only λ-I and λ-E. In particular, we show that
+the term
+  let x := M in N 
+is equivalently expressed as
+  (λ x. N) M
+in the STLC.
+
+(Note that this statement is not true in Hindley-Milner systems, where let-bound
+variables may be instantiated with polymorphic arguments. So, we are using `let`
+statements to demonstrate a case for bisimulation. We are *not* using bisimulation
+to show this particular result is broadly true.)
+
 
 --------------------------------------------------------------------------------
 
