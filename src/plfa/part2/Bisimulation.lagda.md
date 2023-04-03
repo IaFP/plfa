@@ -74,7 +74,7 @@ meaningful than the empty semantics?"
 M and with codomain = { ⊥ }.)
 
 Previous chapters have answered this question in the form of soundness,
-completeness, &c. 
+completeness, and so forth. 
 
 However, there are other ways in which we may want to say a language, or, in
 particular, a _translation_ is meaningful. Consider a compiler which translates
@@ -834,11 +834,6 @@ sim⁻¹ (~let ~M ~N) (β-ƛ VM†) = arm (~sub ~N ~M) (β-let (~val⁻¹ ~M VM�
 
 #### Exercise `products` (practice)
 
-@AH:
-
-This requires *another* projection. I will wait on this until I see if Christa
-knows a clever-er way to make the projection evidence implicit.
-
 
 Show that the two formulations of products in
 Chapter [More](/More/)
@@ -847,7 +842,47 @@ variables, and those connected to functions and products.
 In this case, the simulation is _not_ lock-step.
 
 ```agda
--- Your code goes here
+
+data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
+
+  -- Reflexivity.
+  ~` : ∀ {Γ A} {x : Γ ∋ A}
+     ---------
+   → (` x) ~' (` x)
+
+  -- λ-I Congruence.
+  ~ƛ_ : ∀ {Γ A B} {N N† : Γ , A ⊢ B}
+    → N ~ N†
+      ----------
+    → (ƛ N) ~' (ƛ N†)
+
+  -- λ-E Congruence.
+  _~·_ : ∀ {Γ A B} {L L† : Γ ⊢ A ⇒ B} {M M† : Γ ⊢ A}
+    → L ~ L†
+    → M ~ M†
+      ---------------
+    → (L · M) ~' (L† · M†)
+
+  -- Congruence for products.
+  _~⟨_,_⟩ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+    → L ~ L†
+    → M ~ M†
+    ---------------
+    → `⟨ L , M ⟩ ~' `⟨ L† , M† ⟩
+
+  -- relating proj₁ to case×.
+  ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+    → L ~ L†
+    → M ~ M†
+    ---------------
+    → `proj₁ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) L†)
+
+  ~proj₂ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+    → L ~ L†
+    → M ~ M†
+    ---------------
+    → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
+
 ```
 
 ## Unicode
