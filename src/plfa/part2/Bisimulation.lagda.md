@@ -869,16 +869,6 @@ sim⁻¹ M~M† M†→N† = {!!}
 
 
 
-
-
-
-
-
-
-
-
-
-
 -- sim⁻¹ ~` ()
 -- sim⁻¹ (~ƛ r) ()
 -- sim⁻¹ (~L ~· ~M) (ξ-·₁ L—→) with sim⁻¹ ~L L—→ 
@@ -907,65 +897,81 @@ weaken = rename S_
 
 data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
 
-  -- Reflexivity.
-  ~` : ∀ {Γ A} {x : Γ ∋ A}
-     ---------
-   → (` x) ~' (` x)
+  -- _~'_ extends _~_
+  inj-~ : ∀ {Γ A} {M M† : Γ ⊢ A} →
+       
+       M ~ M† →
+       -------------
+       M ~' M†
 
-  -- λ-I Congruence.
-  ~ƛ_ : ∀ {Γ A B} {N N† : Γ , A ⊢ B}
-    → N ~ N†
-      ----------
-    → (ƛ N) ~' (ƛ N†)
+--   -- Congruence for products.
+  ~⟨_,_⟩ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B} →
+         L ~' L† →
+         M ~' M† →
+         ---------------
+         `⟨ L , M ⟩ ~' `⟨ L† , M† ⟩
 
-  -- λ-E Congruence.
-  _~·_ : ∀ {Γ A B} {L L† : Γ ⊢ A ⇒ B} {M M† : Γ ⊢ A}
-    → L ~ L†
-    → M ~ M†
-      ---------------
-    → (L · M) ~' (L† · M†)
+  ~proj₁ : ∀ {Γ A B} {M M† : Γ ⊢ A `× B}
+    → M ~' M†
+    → `proj₁ M ~' `proj₁ M†
 
-  -- Congruence for products.
-  _~⟨_,_⟩ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
-    → L ~ L†
-    → M ~ M†
+  ~proj₂ : ∀ {Γ A B} {M M† : Γ ⊢ A `× B}
+    → M ~' M†
+    → `proj₂ M ~' `proj₂ M†
+
+  -- N.B.
+  -- We can translate proj₁ and proj₂ to case×,
+  -- or vice versa. Let's eliminate case×.
+
+  ~case× : ∀ {Γ A B C} {L L† : Γ ⊢ A} {M M† : Γ ⊢ (A `× B)} {N N† : Γ , A , B ⊢ C}
+    → M ~' M†
+    → N ~' N†
     ---------------
-    → `⟨ L , M ⟩ ~' `⟨ L† , M† ⟩
+    → (case× M N) ~'  (((ƛ (ƛ N†)) · (`proj₁ M†)) · (`proj₂ M†))
 
-  -- -- N.B.
-  -- -- We can translate proj₁ and proj₂ to case×,
-  -- -- or vice versa. Let's eliminate case×.
+--   -- We could have also defined proj₁,₂ ↦ case× as...
+--   -- (but this involved weakening nuisances.)
+--   -- ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+--   --   → L ~ L†
+--   --   → M ~ M†
+--   --   ---------------
+--   --   → `proj₁ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) L†)
 
-  ~case× : ∀ {Γ A B C} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B} {N N† : Γ , A , B ⊢ C}
-    → L ~ L†
-    → M ~ M†
-    → N ~ N†
-    ---------------
-    → (case× `⟨ L , M ⟩ N) ~'  (((ƛ (ƛ N†)) · L†) · M†)
+--   -- ~proj₂ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+--   --   → L ~ L†
+--   --   → M ~ M†
+--   --   ---------------
+--   --   → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
 
-  -- We could have also defined proj₁,₂ ↦ case× as...
-  -- (but this involved weakening nuisances.)
-  -- ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
-  --   → L ~ L†
-  --   → M ~ M†
-  --   ---------------
-  --   → `proj₁ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) L†)
+-- --------------------------------------------------------------------------------
+-- -- We redefine all the lemmas we had before.
+-- -- (See: The Expression Problem [Wadler '98]).
 
-  -- ~proj₂ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
-  --   → L ~ L†
-  --   → M ~ M†
-  --   ---------------
-  --   → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
+~val' : ∀ {Γ A} {M M† : Γ ⊢ A}
+  → M ~' M†
+  → Value M
+    --------
+  → Value M†
+~val' (inj-~ M) V = ~val M V
+~val' ~⟨ ~L , ~M ⟩ V-⟨ VL , VM ⟩ = V-⟨ (~val' ~L VL) , ~val' ~M VM ⟩
 
---------------------------------------------------------------------------------
--- We redefine all the helpful lemmas we had before.
--- (See: The Expression Problem [Wadler '98]).
+-- You get the idea.
+postulate
+  ~'val⁻¹ : ∀ {Γ A} {M M† : Γ ⊢ A}
+    → M ~' M†
+    → Value M†
+      --------
+    → Value M
 
--- ...
+  ~'sub : ∀ {Γ A B} {N N† : Γ , B ⊢ A} {M M† : Γ ⊢ B}
+    → N ~' N†
+    → M ~' M†
+      -----------------------
+    → (N [ M ]) ~' (N† [ M† ])
 
---------------------------------------------------------------------------------
--- This is *not* a lock-step bisimulation. So, we repeat the definitions from above,
--- but replace —→ with —↠.
+-- --------------------------------------------------------------------------------
+-- -- This is *not* a lock-step bisimulation. So, we repeat the definitions from above,
+-- -- but replace —→ with —↠.
 
 data Leg* {Γ A} (M† N : Γ ⊢ A) : Set where
 
@@ -981,28 +987,40 @@ data Leg* {Γ A} (M† N : Γ ⊢ A) : Set where
     ---------
   → Leg* M† N
 
--- vars and lambda step to themselves.
-Π-sim ~` (.(` _) ∎) = leg* ~` (` _ ∎)
-Π-sim (~ƛ N~N†) (.(ƛ _) ∎) = leg* (~ƛ N~N†) (ƛ _ ∎)
+-- Goal is to pass the buck down to sim.
+-- I may have actually shot foot, here.
+Π-sim (inj-~ ~M) s@(_ ∎) = leg* (inj-~ ~M) (_ ∎)
+Π-sim (inj-~ {M = M} ~M) (_—→⟨_⟩_ _ {M = M'} M—→M' M'↠N) with sim ~M M—→M'
+... | leg M'~N† M†—→N† = Π-sim (inj-~ {!!}) M'↠N
 
-Π-sim (~L ~· ~M) (.(_ · _) ∎) = leg* (~L ~· ~M) (_ ∎)
-Π-sim (~L ~· ~M) (.(_ · _) —→⟨ LM—→M' ⟩ M'—↠N) with sim {!!} LM—→M'
-... | c = leg* {!!} {!!}
-Π-sim (_~⟨_,_⟩ x x₁) (.(`⟨ _ , _ ⟩) ∎) = {!!}
-Π-sim (_~⟨_,_⟩ x x₁) (.(`⟨ _ , _ ⟩) —→⟨ x₂ ⟩ M—↠N) = {!!}
-Π-sim (~case× x x₁ x₂) (.(case× `⟨ _ , _ ⟩ _) ∎) = {!!}
-Π-sim (~case× x x₁ x₂) (.(case× `⟨ _ , _ ⟩ _) —→⟨ x₃ ⟩ M—↠N) = {!!}
-```
+Π-sim ~⟨ M~'M† , M~'M†₁ ⟩ (.(`⟨ _ , _ ⟩) ∎) = {!!}
+Π-sim ~⟨ M~'M† , M~'M†₁ ⟩ (.(`⟨ _ , _ ⟩) —→⟨ x ⟩ M↠N) = {!!}
+Π-sim (~proj₁ M~'M†) (.(`proj₁ _) ∎) = {!!}
+Π-sim (~proj₁ M~'M†) (.(`proj₁ _) —→⟨ x ⟩ M↠N) = {!!}
+Π-sim (~proj₂ M~'M†) (.(`proj₂ _) ∎) = {!!}
+Π-sim (~proj₂ M~'M†) (.(`proj₂ _) —→⟨ x ⟩ M↠N) = {!!}
+Π-sim (~case× M~'M† M~'M†₁) (.(case× _ _) ∎) = {!!}
+Π-sim (~case× M~'M† M~'M†₁) (.(case× _ _) —→⟨ x ⟩ M↠N) = {!!}
 
-## Unicode
+-- -- vars and lambda step to themselves.
+-- Π-sim ~` (.(` _) ∎) = leg* ~` (` _ ∎)
+-- Π-sim (~ƛ N~N†) (.(ƛ _) ∎) = leg* (~ƛ N~N†) (ƛ _ ∎)
 
-This chapter uses the following unicode:
+-- Π-sim (~L ~· ~M) (.(_ · _) ∎) = leg* (~L ~· ~M) (_ ∎)
+-- Π-sim (x ~· x₁) (.(_ · _) —→⟨ x₂ ⟩ y) = {!!}
+-- Π-sim ~⟨ x , x₁ ⟩ (.(`⟨ _ , _ ⟩) ∎) = {!!}
+-- Π-sim ~⟨ x , x₁ ⟩ (.(`⟨ _ , _ ⟩) —→⟨ x₂ ⟩ y) = {!!}
+-- ```
 
-    †  U+2020  DAGGER (\dag)
-    ⁻  U+207B  SUPERSCRIPT MINUS (\^-)
-    ¹  U+00B9  SUPERSCRIPT ONE (\^1)
+-- ## Unicode
 
---------------------------------------------------------------------------------
--- Bibliography.
---
--- [Wadler 98]
+-- This chapter uses the following unicode:
+
+--     †  U+2020  DAGGER (\dag)
+--     ⁻  U+207B  SUPERSCRIPT MINUS (\^-)
+--     ¹  U+00B9  SUPERSCRIPT ONE (\^1)
+
+-- --------------------------------------------------------------------------------
+-- -- Bibliography.
+-- --
+-- -- [Wadler 98]
