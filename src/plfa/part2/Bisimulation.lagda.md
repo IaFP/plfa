@@ -7,7 +7,7 @@ permalink : /Bisimulation/
 module plfa.part2.Bisimulation where
 ```
 
-Some constructs can be defined in terms of other constructs.  In the
+Some constructs can be defined in terms of other constructs. In the
 previous chapter, we saw how _let_ terms can be rewritten as an
 application of an abstraction, and how two alternative formulations of
 products — one with projections and one with case — can be formulated
@@ -61,6 +61,10 @@ a simulation from the target to the source: every reduction in the
 target has a corresponding reduction sequence in the source.  This
 situation is called a _bisimulation_.
 
+@AH: N.B. This is *not* confluence.
+
+(Although I think we haven't covered Confluence yet.)
+
 --------------------------------------------------------------------------------
 -- @AH.
 -- A bit on motivation.
@@ -70,15 +74,17 @@ Let us remember the capital-p Point: We have, at first, meaningless symbols
 semantics? How do we even phrase an argument that says "our semantics is more
 meaningful than the empty semantics?"
 
- (By the "empty semantics", I refer to the denotation ⟦ M ⟧ = ⊥ for all terms
-M and with codomain = { ⊥ }.)
+ (By the "empty semantics", I refer to the denotation 
+  ⟦ M ⟧ = ⊥ 
+for all terms M and with codomain = { ⊥ }.)
 
 Previous chapters have answered this question in the form of soundness,
 completeness, and so forth. 
 
-However, there are other ways in which we may want to say a language, or, in
-particular, a _translation_ is meaningful. Consider a compiler which translates
-from the source language many times. For example, GHC translates along this path:
+However, there are other ways in which we may want to say a language has a
+meaningful semantics. In particular, a _translation_ may be meaningful. Consider a
+compiler which translates from the source language many times. For example, GHC
+translates along this path:
 
 Haskell → (Haskell Core / System FC) → STG → C-- → (C | ASM | LLVM | ...)
 
@@ -102,13 +108,14 @@ the term
   let x := M in N 
 is equivalently expressed as
   (λ x. N) M
-in the STLC.
+in the STLC. You can view this as de-sugaring the `let` construct. So, you see 
+why the bisimulation result is desirable: it tells us that the syntactic sugar
+really was just sugar.
 
-(Note that this statement is not true in Hindley-Milner systems, where let-bound
-variables may be instantiated with polymorphic arguments. So, we are using `let`
-statements to demonstrate a case for bisimulation. We are *not* using bisimulation
-to show this particular result is broadly true.)
-
+(Note that this equivalence statement is not true in Hindley-Milner systems,
+where let-bound terms may be instantiated with polymorphic arguments. So, we
+are using `let` statements to demonstrate a case for bisimulation. We are *not*
+using bisimulation to show this particular result is broadly true.)
 
 --------------------------------------------------------------------------------
 
@@ -148,6 +155,7 @@ fixpoints, products, and so on — would add little save length.
 In this case, our relation can be specified by a function
 from source to target:
 
+     _† : 
     (x) †               =  x
     (ƛ x ⇒ N) †         =  ƛ x ⇒ (N †)
     (L · M) †           =  (L †) · (M †)
@@ -256,14 +264,12 @@ Suppose we have this function `f` that accepts a Nat, but, really, we want it
 to only accept Zero (in such a way that passing it anything else would be a
 type error.)
 
-
 (i) We first define a predicate that only zero can satisfy.
 
 ```agda
 data IsZero : ℕ → Set where
   iszero : IsZero 0
 ```
-
 
 (ii) We next show this predicate is decidable.
 
@@ -357,7 +363,6 @@ _† : ∀ {Γ τ} →
 (`let M N †) w with toWitness w
 ... | LetI P₁ P₂ = (ƛ (_† N (fromWitness P₂))) · (_† M (fromWitness P₁))
 
-
 -- Show that `M † ≡ N` iff `M ~ N`.
 †⇒~ : ∀ {Γ τ} →
         (M N : Γ ⊢ τ) → 
@@ -400,7 +405,6 @@ _† : ∀ {Γ τ} →
   †⇐~ _ _ (fromWitness w-M') s' = refl
 ```
 
-
 ## Simulation commutes with values
 
 We need a number of technical results. The first is that simulation
@@ -411,18 +415,6 @@ commutes with values.  That is, if `M ~ M†` and `M` is a value then
 
 I like to think of it like this:  if you have the arrows on the top-to-right and
 top-to-bottom, you may conclude Value M†. 
-
-(For the categoricists: let us suppose arrows in the diagram below denote the
-Value and ~ propositions hold.)
-
-           ✓
-    M  ----------- Value M
-    |             |
-    |             |
-  ✓ ~            |
-    |             |
-    |      ?      |
-    M† ---------- Value M†
 
 ```agda
 ~val : ∀ {Γ A} {M M† : Γ ⊢ A}
@@ -562,7 +554,7 @@ extending the environment where appropriate (in this case, only for
 the body of an abstraction).
 
 From the general case of substitution, it is also easy to derive
-the required special case.  If `N ~ N†` and `M ~ M†`, then
+the required special case. If `N ~ N†` and `M ~ M†`, then
 `N [ M ] ~ N† [ M† ]`:
 ```agda
 ~sub : ∀ {Γ A B} {N N† : Γ , B ⊢ A} {M M† : Γ ⊢ B}
@@ -631,48 +623,56 @@ sim : ∀ {Γ A} {M M† N : Γ ⊢ A}
   → M —→ N
     ---------
   → Leg  M† N
--- variables and lambdas don't step.
-sim ~`              ()
-sim (~ƛ ~N)         ()
-
--- Case:
---     → L —→ L′
---      ---------------
---    → L · M —→ L′ · M
-sim (~L ~· ~M)      (ξ-·₁ L—→)
-  with sim ~L L—→
-...  | leg ~L′ L†—→                 =  leg (~L′ ~· ~M)   (ξ-·₁ L†—→)
-
--- Case:
---    → Value V
---    → M —→ M′
---    ---------------
---    → V · M —→ V · M′
-sim (~V ~· ~M)      (ξ-·₂ VV M—→)
-  with sim ~M M—→
-...  | leg ~M′ M†—→                 =  leg (~V ~· ~M′)   (ξ-·₂ (~val ~V VV) M†—→)
+-- Let's do this together.
+-- Proceed by induction oh both relations.
+sim M~M† M—→N = {!!}
 
 
--- Case:
---    → Value V
---    --------------------
---    → (ƛ N) · V —→ N [ V ]
-sim ((~ƛ ~N) ~· ~V) (β-ƛ VV)        =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
 
--- Case:
---    → M —→ M′
---    ---------------------
---    → `let M N —→ `let M′ N
-sim (~let ~M ~N)    (ξ-let M—→)
-  with sim ~M M—→
-...  | leg ~M′ M†—→                 =  leg (~let ~M′ ~N) (ξ-·₂ V-ƛ M†—→)
 
--- Case:
---  → Value V
---     -------------------
---  → `let V N —→ N [ V ]
 
-sim (~let ~V ~N)    (β-let VV)      =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
+-- -- variables and lambdas don't step.
+-- sim ~`              ()
+-- sim (~ƛ ~N)         ()
+
+-- -- Case:
+-- --     → L —→ L′
+-- --      ---------------
+-- --    → L · M —→ L′ · M
+-- sim (~L ~· ~M)      (ξ-·₁ L—→)
+--   with sim ~L L—→
+-- ...  | leg ~L′ L†—→                 =  leg (~L′ ~· ~M)   (ξ-·₁ L†—→)
+
+-- -- Case:
+-- --    → Value V
+-- --    → M —→ M′
+-- --    ---------------
+-- --    → V · M —→ V · M′
+-- sim (~V ~· ~M)      (ξ-·₂ VV M—→)
+--   with sim ~M M—→
+-- ...  | leg ~M′ M†—→                 =  leg (~V ~· ~M′)   (ξ-·₂ (~val ~V VV) M†—→)
+
+
+-- -- Case:
+-- --    → Value V
+-- --    --------------------
+-- --    → (ƛ N) · V —→ N [ V ]
+-- sim ((~ƛ ~N) ~· ~V) (β-ƛ VV)        =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
+
+-- -- Case:
+-- --    → M —→ M′
+-- --    ---------------------
+-- --    → `let M N —→ `let M′ N
+-- sim (~let ~M ~N)    (ξ-let M—→)
+--   with sim ~M M—→
+-- ...  | leg ~M′ M†—→                 =  leg (~let ~M′ ~N) (ξ-·₂ V-ƛ M†—→)
+
+-- -- Case:
+-- --  → Value V
+-- --     -------------------
+-- --  → `let V N —→ N [ V ]
+
+-- sim (~let ~V ~N)    (β-let VV)      =  leg (~sub ~N ~V)  (β-ƛ (~val ~V VV))
 ```
 The proof is by case analysis, examining each possible instance of `M ~ M†`
 and each possible instance of `M —→ M†`, using recursive invocation whenever
@@ -785,22 +785,65 @@ In its structure, it looks a little bit like a proof of progress:
 Show that we also have a simulation in the other direction, and hence that we have
 a bisimulation.
 
+--------------------------------------------------------------------------------
 @AH:
 
-Simulation meant that the right path
-    M  --- —→ --- N
-    |             |
-    |             |
-    ~             ~
-    |             |
-    |             |
-    M† --- —→ --- N†
+For a simulation, we suppose that
+  M —→ N
+  and
+  M ~ M†
+and then define a Leg,
 
+   data Leg {Γ A} (M† N : Γ ⊢ A) : Set where
 
-If M ~ M†, N ~ N†, and (in the target language) M† —→ N†,
-then M —→ N.
+     leg : ∀ {N† : Γ ⊢ A}
+           → N ~ N†
+           → M† —→ N†
+           --------
+           → Leg M† N
+
+which specifies that the two question marked paths exist.
+
+     M  --- —→ --- N
+     |             |
+     |             |
+     ~             ~  ?
+     |             |
+     |      ?      |
+     M† --- —→ --- N†
+
+So, in English, if M and M† are related and M steps to N, then there exists
+N† related to N such that M† steps to N†. In other words: the relation ~ maps 
+related inputs to related outputs.
+
+Now, we wish to show the other direction. Visually, split the diagram in half.
+
+     M  --- —→ --- N
+     |           / |
+     |         /   |
+     ~       /     ~   
+     |     /       |
+     |   /         |
+     M† --- —→ --- N†
+
+Before, we assumed the top left (M ~ M† and M —→ N) and showed the bottom
+right. We are not going to precisely show the dual -- that would mean assuming
+M† —→ N† and N ~ N† and Showing that there exists M related to M† such that 
+M —→ N, which is not what we want. Rather, we assume again that M ~ M† and also
+ that M† —→ N†, and show that there exists N related to N† such that M —→ N.
+  
+             ?
+     M  --- —→ --- N
+     |           / |
+     |         /   |
+     ~       /     ~ ?
+     |     /       |
+     |   /         |
+     M† --- —→ --- N†
 
 ```agda
+
+
 
 data Arm {Γ A} (M N† : Γ ⊢ A) : Set where
     arm : ∀ {N : Γ ⊢ A}
@@ -815,21 +858,37 @@ sim⁻¹ : ∀ {Γ A} {M M† N† : Γ ⊢ A}
   → M† —→ N†
     ---------
   → Arm M N†
-sim⁻¹ ~` ()
-sim⁻¹ (~ƛ r) ()
-sim⁻¹ (~L ~· ~M) (ξ-·₁ L—→) with sim⁻¹ ~L L—→ 
-... | arm N~L' L→N = arm (N~L' ~· ~M) (ξ-·₁ L→N)
-sim⁻¹ (~L ~· ~M) (ξ-·₂ VL† M†—→M') with sim⁻¹ ~M M†—→M'
-... | arm N~M' M—→N = arm (~L ~· N~M') (ξ-·₂ (~val⁻¹ ~L VL†) M—→N)
-sim⁻¹ ((~ƛ ~N) ~· ~M) (β-ƛ VM†) = arm (~sub ~N ~M) (β-ƛ (~val⁻¹ ~M VM†))
--- Case:
---   → Value V
---   → M —→ M′
---     ---------------
---   → V · M —→ V · M′
-sim⁻¹ (~let ~M ~N) (ξ-·₂ VƛN† M†—→M') with sim⁻¹ ~M M†—→M' 
-... | arm ~N₁ N₁—→M' = arm (~let ~N₁ ~N) (ξ-let N₁—→M')
-sim⁻¹ (~let ~M ~N) (β-ƛ VM†) = arm (~sub ~N ~M) (β-let (~val⁻¹ ~M VM†))
+
+-- Let's do this together.
+-- Proceed by induction oh both relations.
+sim⁻¹ M~M† M†→N† = {!!}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- sim⁻¹ ~` ()
+-- sim⁻¹ (~ƛ r) ()
+-- sim⁻¹ (~L ~· ~M) (ξ-·₁ L—→) with sim⁻¹ ~L L—→ 
+-- ... | arm N~L' L→N = arm (N~L' ~· ~M) (ξ-·₁ L→N)
+-- sim⁻¹ (~L ~· ~M) (ξ-·₂ VL† M†—→M') with sim⁻¹ ~M M†—→M'
+-- ... | arm N~M' M—→N = arm (~L ~· N~M') (ξ-·₂ (~val⁻¹ ~L VL†) M—→N)
+-- sim⁻¹ ((~ƛ ~N) ~· ~M) (β-ƛ VM†) = arm (~sub ~N ~M) (β-ƛ (~val⁻¹ ~M VM†))
+-- sim⁻¹ (~let ~M ~N) (ξ-·₂ VƛN† M†—→M') with sim⁻¹ ~M M†—→M' 
+-- ... | arm ~N₁ N₁—→M' = arm (~let ~N₁ ~N) (ξ-let N₁—→M')
+-- sim⁻¹ (~let ~M ~N) (β-ƛ VM†) = arm (~sub ~N ~M) (β-let (~val⁻¹ ~M VM†))
 ```
 
 #### Exercise `products` (practice)
@@ -870,18 +929,30 @@ data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
     ---------------
     → `⟨ L , M ⟩ ~' `⟨ L† , M† ⟩
 
-  -- relating proj₁ to case×.
-  ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
-    → L ~ L†
-    → M ~ M†
-    ---------------
-    → `proj₁ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) L†)
+  -- -- N.B.
+  -- -- We can translate proj₁ and proj₂ to case×,
+  -- -- or vice versa. Let's eliminate case×.
+  -- ~case× : 
 
-  ~proj₂ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+  ~case× : ∀ {Γ A B C} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B} {N N† : Γ ⊢ C}
     → L ~ L†
     → M ~ M†
+    → N ~ N†
     ---------------
-    → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
+    → case× `⟨ L , M ⟩ {!N!} ~' {!!} {!!}
+
+  -- -- relating proj₁ to case×.
+  -- ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+  --   → L ~ L†
+  --   → M ~ M†
+  --   ---------------
+  --   → `proj₁ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) L†)
+
+  -- ~proj₂ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
+  --   → L ~ L†
+  --   → M ~ M†
+  --   ---------------
+  --   → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
 
 ```
 
