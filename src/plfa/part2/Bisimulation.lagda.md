@@ -902,6 +902,9 @@ In this case, the simulation is _not_ lock-step.
 
 ```agda
 
+weaken : ∀ {Γ A M} → Γ ⊢ M → Γ , A ⊢ M
+weaken = rename S_
+
 data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
 
   -- Reflexivity.
@@ -932,16 +935,16 @@ data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
   -- -- N.B.
   -- -- We can translate proj₁ and proj₂ to case×,
   -- -- or vice versa. Let's eliminate case×.
-  -- ~case× : 
 
-  ~case× : ∀ {Γ A B C} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B} {N N† : Γ ⊢ C}
+  ~case× : ∀ {Γ A B C} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B} {N N† : Γ , A , B ⊢ C}
     → L ~ L†
     → M ~ M†
     → N ~ N†
     ---------------
-    → case× `⟨ L , M ⟩ {!N!} ~' {!!} {!!}
+    → (case× `⟨ L , M ⟩ N) ~'  (((ƛ (ƛ N†)) · L†) · M†)
 
-  -- -- relating proj₁ to case×.
+  -- We could have also defined proj₁,₂ ↦ case× as...
+  -- (but this involved weakening nuisances.)
   -- ~proj₁ : ∀ {Γ A B} {L L† : Γ ⊢ A} {M M† : Γ ⊢ B}
   --   → L ~ L†
   --   → M ~ M†
@@ -954,6 +957,41 @@ data _~'_ : ∀ {Γ A} → (Γ ⊢ A) → (Γ ⊢ A) → Set where
   --   ---------------
   --   → `proj₂ (`⟨ L , M ⟩) ~' case× `⟨ L† , M† ⟩ (rename (λ x → S (S x)) M†)
 
+--------------------------------------------------------------------------------
+-- We redefine all the helpful lemmas we had before.
+-- (See: The Expression Problem [Wadler '98]).
+
+-- ...
+
+--------------------------------------------------------------------------------
+-- This is *not* a lock-step bisimulation. So, we repeat the definitions from above,
+-- but replace —→ with —↠.
+
+data Leg* {Γ A} (M† N : Γ ⊢ A) : Set where
+
+  leg* : ∀ {N† : Γ ⊢ A}
+    → N ~' N†
+    → M† —↠ N†
+      --------
+    → Leg* M† N
+
+Π-sim : ∀ {Γ A} {M M† N : Γ ⊢ A}
+  → M ~' M†
+  → M —↠ N
+    ---------
+  → Leg* M† N
+
+-- vars and lambda step to themselves.
+Π-sim ~` (.(` _) ∎) = leg* ~` (` _ ∎)
+Π-sim (~ƛ N~N†) (.(ƛ _) ∎) = leg* (~ƛ N~N†) (ƛ _ ∎)
+
+Π-sim (~L ~· ~M) (.(_ · _) ∎) = leg* (~L ~· ~M) (_ ∎)
+Π-sim (~L ~· ~M) (.(_ · _) —→⟨ LM—→M' ⟩ M'—↠N) with sim {!!} LM—→M'
+... | c = leg* {!!} {!!}
+Π-sim (_~⟨_,_⟩ x x₁) (.(`⟨ _ , _ ⟩) ∎) = {!!}
+Π-sim (_~⟨_,_⟩ x x₁) (.(`⟨ _ , _ ⟩) —→⟨ x₂ ⟩ M—↠N) = {!!}
+Π-sim (~case× x x₁ x₂) (.(case× `⟨ _ , _ ⟩ _) ∎) = {!!}
+Π-sim (~case× x x₁ x₂) (.(case× `⟨ _ , _ ⟩ _) —→⟨ x₃ ⟩ M—↠N) = {!!}
 ```
 
 ## Unicode
